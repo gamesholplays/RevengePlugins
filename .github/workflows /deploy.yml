@@ -4,13 +4,12 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pages: write      
-      id-token: write 
 
     steps:
       - uses: actions/checkout@v4
@@ -39,8 +38,7 @@ jobs:
           cat README.md >> dist/404.md
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          enable_jekyll: true
+          folder: dist
+          branch: gh-pages
