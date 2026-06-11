@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write      
+      id-token: write 
 
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +20,6 @@ jobs:
         with:
           node-version: "22"
 
-      # Official, safer way to initialize pnpm without hanging
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
