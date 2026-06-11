@@ -25,7 +25,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile --config.unsafe-perm=true
+        env:
+          PNPM_IGNORE_BUILDS: "false"
       - run: pnpm build
       - uses: actions/upload-pages-artifact@v3
         with:
