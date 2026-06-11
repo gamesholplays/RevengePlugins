@@ -1,26 +1,23 @@
-import { findByProps } from "@vendetta/metro";
+import { findByProps, findByStoreName } from "@vendetta/metro";
 
 export default {
     onLoad() {
-        const mods = [
-            "renderMessage",
-            "getMessageColors",
-            "getMessageBorderColor",
-            "getMessageTextColor",
-            "messageComponent",
-            "MessageItem",
-            "renderContent",
-            "onTapAvatar",
-            "onTapUsername",
-            "onTapReaction",
+        // Check what stores are available
+        const stores = [
+            "MessageStore",
+            "ChannelStore", 
+            "SelectedChannelStore",
+            "PendingReplyStore",
         ];
 
         let found = "";
-        for (const prop of mods) {
-            const mod = findByProps(prop);
-            if (mod) found += prop + ", ";
+        for (const name of stores) {
+            try {
+                const store = findByStoreName(name);
+                if (store) found += name + ", ";
+            } catch {}
         }
-        alert("[DTR] Found: " + (found || "NONE"));
+        alert("[DTR] Stores: " + (found || "NONE"));
     },
     onUnload() {},
 };
