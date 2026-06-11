@@ -1,17 +1,18 @@
 name: Build and deploy
 
 on:
-    push:
-        branches: [main]
+  push:
+    branches:
+      - main
 
 jobs:
-    deploy:
-        runs-on: ubuntu-latest
-        permissions:
-          contents: write
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
             - name: Prepare environment
               uses: actions/setup-node@v4
