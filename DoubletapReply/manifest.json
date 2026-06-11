@@ -1,15 +1,12 @@
 {
-  "name": "DoubleTapReply",
-  "description": "Double-tap a message to start replying to it.",
-  "authors": [
-    {
-      "name": "game_sholplays",
-      "id": "429906934121103361"
-    }
-  ],
-  "main": "index.js",
-  "version": "1.0.0",
-  "vendetta": {
-    "icon": "ic_reply_24px"
-  }
+    "name": "DoubleTapReply",
+    "description": "Double-tap a message to start replying to it.",
+    "authors": [
+        {
+            "name": "gamesholplays",
+            "id": "429906934121103361"
+        }
+    ],
+    "main": "src/index.ts",
+    "version": "1.0.0"
 }
