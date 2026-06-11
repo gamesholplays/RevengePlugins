@@ -1,23 +1,25 @@
-import { findByProps, findByStoreName } from "@vendetta/metro";
+import { findByProps } from "@vendetta/metro";
 
 export default {
     onLoad() {
-        // Check what stores are available
-        const stores = [
-            "MessageStore",
-            "ChannelStore", 
-            "SelectedChannelStore",
-            "PendingReplyStore",
+        const props = [
+            "handleTouchStart",
+            "onResponderGrant", 
+            "setGestureState",
+            "GestureHandler",
+            "TapGestureHandler",
+            "onSingleTap",
+            "onDoubleTap",
+            "numberOfTaps",
+            "LongPressGestureHandler",
         ];
 
         let found = "";
-        for (const name of stores) {
-            try {
-                const store = findByStoreName(name);
-                if (store) found += name + ", ";
-            } catch {}
+        for (const prop of props) {
+            const mod = findByProps(prop);
+            if (mod) found += prop + ", ";
         }
-        alert("[DTR] Stores: " + (found || "NONE"));
+        alert("[DTR] Found: " + (found || "NONE"));
     },
     onUnload() {},
 };
