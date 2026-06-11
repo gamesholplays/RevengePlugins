@@ -25,6 +25,7 @@ jobs:
       - run: ls -la
       - run: npm install --legacy-peer-deps
       - run: find . -type f | head -30
+      - run: find plugins -type f
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
