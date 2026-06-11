@@ -42,3 +42,4 @@ jobs:
         with:
           folder: dist
           branch: gh-pages
+          create_branch: true 
