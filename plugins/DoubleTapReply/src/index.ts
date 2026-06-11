@@ -1,25 +1,34 @@
 import { findByProps } from "@vendetta/metro";
+import { instead } from "@vendetta/patcher";
+
+const DOUBLE_TAP_MS = 350;
+let lastTap: { messageId: string; timestamp: number } | null = null;
+const patches: (() => void)[] = [];
 
 export default {
     onLoad() {
-        // Scan for modules that have both a function and message-related props
-        const candidates = [
-            ["startReaction", "startEditMessage"],
-            ["startEditMessage", "deleteMessage"],
-            ["jumpToMessage", "fetchMessages"],
-            ["clearChannel", "sendMessage"],
-            ["sendMessage", "editMessage"],
-        ];
+        const MessageActions = findByProps("startEditMessage", "deleteMessage");
+        const ReplyActions = findByProps("getSendMessageOptionsForReply");
 
-        let results = "";
-        for (const props of candidates) {
-            const mod = findByProps(...props);
-            if (mod) {
-                results += "\n[" + props.join(",") + "]: " + Object.keys(mod).join(", ");
-            }
+        if (!MessageActions && !ReplyActions) {
+            alert("[DoubleTapReply] FAILED: no modules found");
+            return;
         }
 
-        alert("Modules found:" + (results || " NONE"));
+        // createPendingReply is the reply trigger - check which module has it
+        const replyModule = findByProps("createPendingReply") ?? ReplyActions;
+
+        if (!replyModule) {
+            alert("[DoubleTapReply] FAILED: no reply module");
+            return;
+        }
+
+        alert("[DoubleTapReply] Reply module keys: " + Object.keys(replyModule).join(", "));
     },
-    onUnload() {},
+
+    onUnload() {
+        patches.forEach(p => p?.());
+        patches.length = 0;
+        lastTap = null;
+    },
 };
