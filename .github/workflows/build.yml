@@ -24,7 +24,7 @@ jobs:
           node-version: 22
       - run: ls -la
       - run: npm install --legacy-peer-deps
-      - run: ls node_modules | grep rollup
+      - run: find . -type f | head -30
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
