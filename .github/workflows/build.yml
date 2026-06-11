@@ -24,7 +24,7 @@ jobs:
           node-version: 22
       - run: find . -name "manifest.json" | head -20
       - run: npm run build
-      - run: npm install --legacy-peer-deps
+      - run: npm install --include=dev --legacy-peer-deps
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
