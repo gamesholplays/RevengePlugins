@@ -22,10 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: find . -name "manifest.json" | head -20
+      - run: ls -la
+      - run: npm install --legacy-peer-deps
       - run: ls node_modules | grep rollup
-      - run: npm run build
-      - run: npm install --include=dev --legacy-peer-deps
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
