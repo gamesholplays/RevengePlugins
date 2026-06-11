@@ -23,6 +23,7 @@ jobs:
         with:
           node-version: 22
       - run: find . -name "manifest.json" | head -20
+      - run: ls node_modules | grep rollup
       - run: npm run build
       - run: npm install --include=dev --legacy-peer-deps
       - run: npm run build
