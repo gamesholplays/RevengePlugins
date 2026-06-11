@@ -14,7 +14,7 @@ export default {
             findByProps("createPendingReply");
 
         if (!MessageActions) {
-            console.warn("[DoubleTapReply] Could not find MessageActions");
+            alert("[DoubleTapReply] FAILED: Could not find MessageActions");
             return;
         }
 
@@ -23,19 +23,24 @@ export default {
             "startReply" in MessageActions ? "startReply" :
             "createPendingReply";
 
-        // The message press handler module — try known names across Discord versions
+        alert("[DoubleTapReply] Found MessageActions, replyFn: " + replyFn);
+
         const MessagePressModule =
             findByProps("handleMessagePress") ??
-            findByProps("onPressMessage");
+            findByProps("onPressMessage") ??
+            findByProps("pressMessage");
 
         if (!MessagePressModule) {
-            console.warn("[DoubleTapReply] Could not find message press handler");
+            alert("[DoubleTapReply] FAILED: Could not find message press handler");
             return;
         }
 
         const pressFn: string =
             "handleMessagePress" in MessagePressModule ? "handleMessagePress" :
-            "onPressMessage";
+            "onPressMessage" in MessagePressModule ? "onPressMessage" :
+            "pressMessage";
+
+        alert("[DoubleTapReply] Found press handler: " + pressFn);
 
         patches.push(
             instead(pressFn, MessagePressModule, (args, orig) => {
@@ -59,7 +64,7 @@ export default {
                         try {
                             MessageActions[replyFn](channel?.id, message, true);
                         } catch (e) {
-                            console.error("[DoubleTapReply] reply call failed:", e);
+                            alert("[DoubleTapReply] reply call failed: " + e);
                         }
                     }
                     return;
