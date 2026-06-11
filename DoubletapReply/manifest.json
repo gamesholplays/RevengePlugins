@@ -1,15 +1,7 @@
 {
-  "name": "DoubleTapReply",
-  "description": "Double-tap a message to start replying to it.",
-  "authors": [
-    {
-      "name": "you",
-      "id": "0"
-    }
-  ],
-  "main": "index.js",
+  "name": "DoubletapReply",
+  "description": "Double tap a message to reply.",
+  "author": "gamesholplays",
   "version": "1.0.0",
-  "vendetta": {
-    "icon": "ic_reply_24px"
-  }
+  "main": "index.js"
 }
