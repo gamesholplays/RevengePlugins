@@ -1,4 +1,5 @@
 import { findByProps, findByStoreName } from "@vendetta/metro";
+import { ReactNative } from "@vendetta/metro/common";
 
 export default {
   onLoad() {
@@ -15,8 +16,7 @@ export default {
 
     const focusInput = () => {
       try {
-        const RN = require("react-native");
-        const TIS = RN.TextInputState;
+        const TIS = (ReactNative as any)?.TextInputState;
         const lastFocused = TIS?.currentlyFocusedInput?.()
           ?? TIS?.currentlyFocusedField?.();
         alert(
