@@ -12,11 +12,30 @@ export default {
         }
 
         const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
+        let recentSheet = false;
+        let sheetTimer: any = null;
+
+        const sheetInterceptor = (event: any) => {
+            if (event?.type === "SHOW_ACTION_SHEET") {
+                recentSheet = true;
+                if (sheetTimer) clearTimeout(sheetTimer);
+            }
+            if (event?.type === "HIDE_ACTION_SHEET") {
+                if (sheetTimer) clearTimeout(sheetTimer);
+                // Keep recentSheet true for 1000ms after sheet closes
+                // to catch the reaction event that fires after hide
+                sheetTimer = setTimeout(() => {
+                    recentSheet = false;
+                }, 1000);
+            }
+            return false;
+        };
 
         const interceptor = (event: any) => {
             if (event?.type !== "MESSAGE_REACTION_ADD") return false;
-            if (!event.optimistic) return false; // double-tap first event has optimistic:true
-            if (event.messageAuthorId) return false; // manual reacts have messageAuthorId
+            if (!event.optimistic) return false;
+            if (event.messageAuthorId) return false;
+            if (recentSheet) return false; // came from action sheet, let it through
 
             const { channelId, messageId } = event;
             if (!channelId || !messageId) return false;
@@ -34,16 +53,20 @@ export default {
             return true;
         };
 
+        FluxDispatcher._interceptors.push(sheetInterceptor);
         FluxDispatcher._interceptors.push(interceptor);
         (this as any)._interceptor = interceptor;
+        (this as any)._sheetInterceptor = sheetInterceptor;
         (this as any)._dispatcher = FluxDispatcher;
     },
 
     onUnload() {
-        const { _interceptor, _dispatcher } = this as any;
-        if (_dispatcher && _interceptor) {
-            const idx = _dispatcher._interceptors.indexOf(_interceptor);
-            if (idx !== -1) _dispatcher._interceptors.splice(idx, 1);
+        const { _interceptor, _sheetInterceptor, _dispatcher } = this as any;
+        if (_dispatcher) {
+            [_interceptor, _sheetInterceptor].forEach(i => {
+                const idx = _dispatcher._interceptors.indexOf(i);
+                if (idx !== -1) _dispatcher._interceptors.splice(idx, 1);
+            });
         }
     },
 };
