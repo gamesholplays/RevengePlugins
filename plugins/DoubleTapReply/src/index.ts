@@ -15,6 +15,7 @@ export default {
 
         const interceptor = (event: any) => {
             if (event?.type !== "MESSAGE_REACTION_ADD") return false;
+            if (event.optimistic) return false; // manual reacts have optimistic:true, let them through
 
             const { channelId, messageId } = event;
             if (!channelId || !messageId) return false;
