@@ -1,5 +1,4 @@
 import { findByProps, findByStoreName } from "@vendetta/metro";
-import { ReactNative } from "@vendetta/metro/common";
 
 export default {
   onLoad() {
@@ -14,52 +13,37 @@ export default {
       return;
     }
 
-    // Find chat input ref by walking Discord's module registry
-    // Discord stores the chat input ref in a module with "chatInputRef" or similar
-    const ChatInputRef = findByProps("chatInputRef")
-      ?? findByProps("inputRef")
-      ?? findByProps("textInputRef");
-
-    alert("ChatInputRef found: " + !!ChatInputRef + 
-          (ChatInputRef ? "\nkeys: " + Object.keys(ChatInputRef).join(", ") : ""));
-
-    const focusInput = () => {
-      try {
-        // Try known ref shapes
-        const ref = ChatInputRef?.chatInputRef?.current
-          ?? ChatInputRef?.inputRef?.current
-          ?? ChatInputRef?.textInputRef?.current;
-        if (ref?.focus) {
-          ref.focus();
-          return;
-        }
-        // Try calling focus() via the UIManager on a known tag
-        const { UIManager, findNodeHandle } = ReactNative as any;
-        if (UIManager && ref) {
-          UIManager.focus(findNodeHandle(ref));
-        }
-      } catch (e: any) {
-        console.warn("[DTR] focusInput:", e);
-      }
-    };
-
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
     const blocked = new Set<string>();
+
+    let spying = false;
+    let spyEvents: string[] = [];
 
     const sheetInterceptor = (event: any) => {
       if (event?.type === "SHOW_ACTION_SHEET") {
         recentSheet = true;
         if (sheetTimer) clearTimeout(sheetTimer);
+
+        // Start 6s spy when action sheet opens
+        spying = true;
+        spyEvents = [];
+        setTimeout(() => {
+          spying = false;
+          alert("events during reply flow:\n" + [...new Set(spyEvents)].join("\n"));
+        }, 6000);
       }
       if (event?.type === "HIDE_ACTION_SHEET") {
         if (sheetTimer) clearTimeout(sheetTimer);
         sheetTimer = setTimeout(() => { recentSheet = false; }, 1000);
       }
+      if (spying) spyEvents.push(event.type);
       return false;
     };
 
     const interceptor = (event: any) => {
+      if (spying) spyEvents.push(event.type);
+
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
 
       const { channelId, messageId, emoji } = event;
@@ -83,8 +67,6 @@ export default {
       setTimeout(() => blocked.delete(key), 5000);
 
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
-
-      setTimeout(focusInput, 150);
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
