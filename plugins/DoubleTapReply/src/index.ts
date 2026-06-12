@@ -2,50 +2,45 @@ import { findByProps, findByStoreName } from "@vendetta/metro";
 
 export default {
   onLoad() {
-    const ReplyActions     = findByProps("createPendingReply");
-    const ChannelStore     = findByStoreName("ChannelStore");
-    const MessageStore     = findByStoreName("MessageStore");
+    const ReplyActions   = findByProps("createPendingReply");
+    const ChannelStore   = findByStoreName("ChannelStore");
+    const MessageStore   = findByStoreName("MessageStore");
+    const UserStore      = findByStoreName("UserStore");
+    const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
 
-    if (!ReplyActions || !ChannelStore || !MessageStore) {
+    if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
       console.error("[DTR] Missing core modules");
       return;
     }
 
-    const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
-
-    // ── Keyboard focus ──────────────────────────────────────────────────────
-    // Try multiple known module shapes across Revenge/Bunny versions
-    const KeyboardUtils   = findByProps("openKeyboard", "dismissKeyboard");
-    const ChatInputFocus  = findByProps("forceFocus", "setFocused"); // some builds
-    const DeviceEventEmitter = findByProps("emit", "addListener", "removeAllListeners");
+    // ── Keyboard: find Discord's chat input focus utility ──────────────────
+    // Discord exposes a module with `focus` that targets the chat input.
+    // Try several known shapes; log which one works so you can trim later.
+    const ChatInputRef =
+      findByProps("chatInputRef") ??
+      findByProps("setChatInputFocus") ??
+      findByProps("focusChatInput");
 
     const focusInput = () => {
-      // Method 1 – explicit openKeyboard utility
-      if (KeyboardUtils?.openKeyboard) {
-        try { KeyboardUtils.openKeyboard(); return; } catch {}
+      if (ChatInputRef?.focusChatInput) {
+        try { ChatInputRef.focusChatInput(); return; } catch (e) { console.warn("[DTR] focusChatInput threw:", e); }
       }
-      // Method 2 – forceFocus on the chat input
-      if (ChatInputFocus?.forceFocus) {
-        try { ChatInputFocus.forceFocus(); return; } catch {}
+      if (ChatInputRef?.setChatInputFocus) {
+        try { ChatInputRef.setChatInputFocus(true); return; } catch (e) { console.warn("[DTR] setChatInputFocus threw:", e); }
       }
-      // Method 3 – DeviceEventEmitter signal (works on most RN Discord builds)
-      if (DeviceEventEmitter?.emit) {
-        try { DeviceEventEmitter.emit("RCTKeyboardWillShow", {}); } catch {}
+      if (ChatInputRef?.chatInputRef?.current?.focus) {
+        try { ChatInputRef.chatInputRef.current.focus(); return; } catch (e) { console.warn("[DTR] chatInputRef.focus threw:", e); }
+      }
+      // Last resort: dispatch a Flux event Discord uses internally for this
+      try {
+        FluxDispatcher.dispatch({ type: "CHANNEL_EDITOR_FOCUS" });
+      } catch (e) {
+        console.warn("[DTR] CHANNEL_EDITOR_FOCUS dispatch failed:", e);
       }
     };
 
-    // ── Reaction removal ─────────────────────────────────────────────────────
-    // Don't freeze the reference at load time – some modules register late.
-    const getRemoveFn = () => {
-      const m =
-        findByProps("removeReaction") ??
-        findByProps("deleteReaction")  ??
-        findByProps("toggleReaction");   // fallback: toggle off an existing reaction
-      return m?.removeReaction ?? m?.deleteReaction ?? m?.toggleReaction ?? null;
-    };
-
-    // ── Sheet tracker ────────────────────────────────────────────────────────
-    let recentSheet  = false;
+    // ── Sheet tracker ──────────────────────────────────────────────────────
+    let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
 
     const sheetInterceptor = (event: any) => {
@@ -60,12 +55,12 @@ export default {
       return false;
     };
 
-    // ── Main interceptor ─────────────────────────────────────────────────────
+    // ── Main interceptor ───────────────────────────────────────────────────
     const interceptor = (event: any) => {
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
-      if (!event.optimistic)      return false; // not a local tap
-      if (event.messageAuthorId)  return false; // has author id → manual long-press flow
-      if (recentSheet)            return false; // preceded by action sheet → manual
+      if (!event.optimistic)     return false;
+      if (event.messageAuthorId) return false;
+      if (recentSheet)           return false;
 
       const { channelId, messageId, emoji } = event;
       if (!channelId || !messageId) return false;
@@ -74,31 +69,33 @@ export default {
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      // 1. Create the pending reply
-      ReplyActions.createPendingReply({
-        message,
-        channel,
-        shouldMention: true,
-      });
+      // 1. Reply
+      ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-      // 2. Open keyboard so the user can type immediately
-      //    Small delay lets the reply bar render first
-      setTimeout(focusInput, 80);
+      // 2. Keyboard — after reply bar renders
+      setTimeout(focusInput, 100);
 
-      // 3. Remove the reaction that was optimistically added
-      //    Resolved at call-time so late-registering modules are found
+      // 3. Cancel the reaction by dispatching the REMOVE event ourselves.
+      //    We do this AFTER returning false (letting the ADD through)
+      //    so the optimistic update lands first, then we undo it.
+      //    Using setTimeout(0) queues it after the current dispatch cycle.
+      const currentUser = UserStore?.getCurrentUser?.();
       setTimeout(() => {
-        const removeFn = getRemoveFn();
-        if (removeFn) {
-          try { removeFn(channelId, messageId, emoji); } catch (e) {
-            console.warn("[DTR] removeReaction failed:", e);
-          }
-        } else {
-          console.warn("[DTR] No reaction-removal module found");
+        try {
+          FluxDispatcher.dispatch({
+            type: "MESSAGE_REACTION_REMOVE",
+            channelId,
+            messageId,
+            emoji,
+            userId: currentUser?.id,
+            optimistic: true,
+          });
+        } catch (e) {
+          console.warn("[DTR] reaction remove dispatch failed:", e);
         }
-      }, 120);
+      }, 0);
 
-      return true; // swallow the original event
+      return false; // let the ADD through so we have something to remove
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
