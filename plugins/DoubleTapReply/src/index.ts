@@ -15,38 +15,45 @@ export default {
 
     const focusInput = () => {
       try {
-        // Find all RN view instances that have a focus() method
-        // by walking __reactFiber keys on the root container
-        const rootKeys = Object.keys(globalThis).filter(k => k.startsWith("__reactFiber"));
-        let found = false;
-        for (const key of rootKeys) {
+        const fiberKeys = Object.keys(globalThis).filter(k => k.startsWith("__reactFiber"));
+        const inputs: string[] = [];
+        let focused = false;
+
+        for (const key of fiberKeys) {
           const fiber = (globalThis as any)[key];
           if (!fiber) continue;
-          // Walk fiber tree looking for TextInput with onChangeText
+
           const visit = (node: any, depth: number) => {
-            if (!node || depth > 200) return;
+            if (!node || depth > 300 || focused) return;
             try {
-              if (
-                node.stateNode &&
-                typeof node.stateNode.focus === "function" &&
-                node.memoizedProps?.onChangeText
-              ) {
-                node.stateNode.focus();
-                found = true;
-                return;
+              const isTextInput = node.memoizedProps?.onChangeText != null;
+              const hasFocus = typeof node.stateNode?.focus === "function";
+              if (isTextInput) {
+                inputs.push("depth=" + depth + " hasFocus=" + hasFocus + " props=" + Object.keys(node.memoizedProps ?? {}).slice(0, 6).join(","));
+                if (hasFocus) {
+                  node.stateNode.focus();
+                  focused = true;
+                  return;
+                }
               }
               visit(node.child, depth + 1);
-              if (!found) visit(node.sibling, depth + 1);
+              visit(node.sibling, depth + 1);
             } catch {}
           };
           visit(fiber, 0);
-          if (found) break;
         }
-        if (!found) console.warn("[DTR] no TextInput found to focus");
+
+        alert("fiberKeys=" + fiberKeys.length +
+              "\ninputs found=" + inputs.length +
+              "\nfocused=" + focused +
+              "\n\n" + inputs.slice(0, 5).join("\n"));
       } catch (e: any) {
-        console.warn("[DTR] focusInput:", e);
+        alert("focusInput error: " + e);
       }
     };
+
+    // Test on load after 2s so we can see what's on screen
+    setTimeout(focusInput, 2000);
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -95,7 +102,6 @@ export default {
         showMentionToggle: true,
       });
 
-      // Wait for reply bar to mount then focus the chat input
       setTimeout(focusInput, 300);
 
       if (ReactionActions?.removeReaction) {
