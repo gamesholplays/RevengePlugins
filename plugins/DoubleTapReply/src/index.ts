@@ -1,14 +1,12 @@
 import { findByProps, findByStoreName } from "@vendetta/metro";
 
-const DOUBLE_TAP_MS = 350;
-let lastTap: { messageId: string; timestamp: number } | null = null;
-
 export default {
     onLoad() {
         const ReplyActions = findByProps("createPendingReply");
         const ChannelStore = findByStoreName("ChannelStore");
+        const MessageStore = findByStoreName("MessageStore");
 
-        if (!ReplyActions || !ChannelStore) {
+        if (!ReplyActions || !ChannelStore || !MessageStore) {
             alert("[DTR] Missing modules");
             return;
         }
@@ -16,32 +14,23 @@ export default {
         const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
 
         const interceptor = (event: any) => {
-            if (event?.type !== "SHOW_ACTION_SHEET") return false;
+            if (event?.type !== "MESSAGE_REACTION_ADD") return false;
 
-            const props = event?.content?.props;
-            const message = props?.message;
-            const channel = props?.channel ?? ChannelStore.getChannel(message?.channel_id);
+            const { channelId, messageId } = event;
+            if (!channelId || !messageId) return false;
 
-            if (!message?.id) return false;
+            const channel = ChannelStore.getChannel(channelId);
+            const message = MessageStore.getMessage(channelId, messageId);
 
-            const now = Date.now();
+            if (!channel || !message) return false;
 
-            if (
-                lastTap &&
-                lastTap.messageId === message.id &&
-                now - lastTap.timestamp < DOUBLE_TAP_MS
-            ) {
-                lastTap = null;
-                ReplyActions.createPendingReply({
-                    message,
-                    channel,
-                    shouldMention: true,
-                });
-                return true; // true = swallow the event (don't show action sheet)
-            }
+            ReplyActions.createPendingReply({
+                message,
+                channel,
+                shouldMention: true,
+            });
 
-            lastTap = { messageId: message.id, timestamp: now };
-            return false; // let first long press show action sheet normally
+            return true; // swallow the reaction, trigger reply instead
         };
 
         FluxDispatcher._interceptors.push(interceptor);
@@ -55,6 +44,5 @@ export default {
             const idx = _dispatcher._interceptors.indexOf(_interceptor);
             if (idx !== -1) _dispatcher._interceptors.splice(idx, 1);
         }
-        lastTap = null;
     },
 };
