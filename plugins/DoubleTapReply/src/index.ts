@@ -19,17 +19,19 @@ export default {
         const TIS = RN.TextInputState;
         const lastFocused = TIS?.currentlyFocusedInput?.()
           ?? TIS?.currentlyFocusedField?.();
+        alert(
+          "lastFocused: " + lastFocused +
+          "\ntype: " + typeof lastFocused +
+          "\nTIS keys: " + Object.keys(TIS ?? {}).join(", ")
+        );
         if (lastFocused) TIS.focusTextInput(lastFocused);
       } catch (e: any) {
-        console.warn("[DTR] focusInput:", e);
+        alert("focusInput error: " + e);
       }
     };
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // Track intercepted reactions so we can swallow the server echo too
-    // key = "channelId:messageId:emojiName"
     const blocked = new Set<string>();
 
     const sheetInterceptor = (event: any) => {
@@ -52,41 +54,32 @@ export default {
 
       const key = channelId + ":" + messageId + ":" + (emoji?.name ?? emoji?.id ?? "");
 
-      // Swallow the server echo for reactions we already intercepted
       if (blocked.has(key)) {
         blocked.delete(key);
         return true;
       }
 
-      // Skip manual long-press reactions
       if (recentSheet) return false;
-
-      // Only intercept optimistic (local gesture) events
       if (!event.optimistic) return false;
 
       const channel = ChannelStore.getChannel(channelId);
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      // Mark this reaction to block the server echo
       blocked.add(key);
-      // Clean up in case server echo never arrives
       setTimeout(() => blocked.delete(key), 5000);
 
-      // 1. Start reply
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-      // 2. Open keyboard
       setTimeout(focusInput, 150);
 
-      // 3. Cancel network call — tell server to remove it
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
           try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
         }, 50);
       }
 
-      return true; // swallow optimistic store update
+      return true;
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
