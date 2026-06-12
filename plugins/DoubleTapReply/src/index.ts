@@ -1,50 +1,37 @@
 import { findByProps, findByStoreName } from "@vendetta/metro";
-import { ReactNative } from "@vendetta/metro/common";
 
 export default {
   onLoad() {
-    const ReplyActions   = findByProps("createPendingReply");
-    const ChannelStore   = findByStoreName("ChannelStore");
-    const MessageStore   = findByStoreName("MessageStore");
-    const UserStore      = findByStoreName("UserStore");
-    const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
+    const ReplyActions    = findByProps("createPendingReply");
+    const ChannelStore    = findByStoreName("ChannelStore");
+    const MessageStore    = findByStoreName("MessageStore");
+    const FluxDispatcher  = findByProps("_interceptors", "_subscriptions");
 
-    // Module 10203 — has handleAddNewReactions, handleRemoveAllReactions
-    // The actual per-reaction remove is dispatching MESSAGE_REACTION_REMOVE
-    // OR calling the action directly. Let's grab module 10203 by its unique key.
-    const ReactionOutOfSuperActions = findByProps("handleOutOfSuperReactions", "handleAddNewReactions");
+    // Real reaction remove module — [6834]
+    const ReactionActions = findByProps("removeReaction", "removeEmojiReactions");
+
+    // Real keyboard focus module — [1612]
+    const ChatInputFocus  = findByProps("getIsAnyChatInputFocused");
 
     if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
       console.error("[DTR] Missing core modules");
       return;
     }
 
-    // ── Keyboard focus via RN TextInputState ───────────────────────────────
-    // There is no Discord-level focus module. Use RN's internal state directly.
-    const TextInputState = ReactNative?.TextInputState
-      ?? (ReactNative as any)?.NativeModules?.TextInputState;
+    if (!ReactionActions) console.warn("[DTR] removeReaction module not found");
+    if (!ChatInputFocus)  console.warn("[DTR] ChatInputFocus module not found");
 
-    // Fallback: find the currently focused text input node via RN internals
+    // Log what focus module actually exports so we know the setter name
+    if (ChatInputFocus) {
+      console.info("[DTR] ChatInputFocus keys:", Object.keys(ChatInputFocus).join(", "));
+    }
+
     const focusInput = () => {
-      try {
-        // Discord's chat box is a TextInput — find it by looking at currently
-        // registered text inputs and focus the last one (chat is always last)
-        const { TextInputState: TIS } = require("react-native");
-        // currentlyFocusedInput() returns the ref on RN >= 0.65
-        // On older: currentlyFocusedField() returns a tag
-        const focused = TIS?.currentlyFocusedInput?.() ?? TIS?.currentlyFocusedField?.();
-        // If something is already focused, blur+refocus to force keyboard up
-        if (focused) {
-          TIS?.blurTextInput?.(focused);
-          setTimeout(() => TIS?.focusTextInput?.(focused), 50);
-        } else {
-          // Nothing focused — dispatch the Flux event Discord uses internally
-          // when reply bar appears (seen in Discord's own reply flow)
-          FluxDispatcher.dispatch({ type: "CLEAR_AUTOCOMPLETE" }); // triggers input reset
-        }
-      } catch (e) {
-        console.warn("[DTR] focusInput failed:", e);
-      }
+      if (!ChatInputFocus) return;
+      // Try every plausible setter name — we'll know the real one from the log above
+      try { ChatInputFocus.setsIsAnyInputFocused?.(true); } catch {}
+      try { ChatInputFocus.setIsAnyChatInputFocused?.(true); } catch {}
+      try { ChatInputFocus.focusChatInput?.(); } catch {}
     };
 
     // ── Sheet tracker ──────────────────────────────────────────────────────
@@ -77,28 +64,27 @@ export default {
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      // 1. Start reply
+      // 1. Block the ADD entirely — return true swallows it before Discord sees it
+      //    This means no optimistic update, no server call, nothing to undo
+      //    We must call removeReaction ourselves to be safe if anything slipped through
+
+      // 2. Start reply
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-      // 2. Focus keyboard — after reply bar renders (needs a frame)
+      // 3. Open keyboard after reply bar renders
       setTimeout(focusInput, 150);
 
-      // 3. Remove the reaction — dispatch MESSAGE_REACTION_REMOVE optimistically.
-      //    We let the ADD go through (return false) so the store has it,
-      //    then immediately undo it. userId must match for the store to remove it.
-      const userId = UserStore?.getCurrentUser?.()?.id;
-      setTimeout(() => {
-        FluxDispatcher.dispatch({
-          type: "MESSAGE_REACTION_REMOVE",
-          channelId,
-          messageId,
-          emoji,          // same shape as the ADD event: { name, id, animated }
-          userId,
-          optimistic: true,
-        });
-      }, 50);
+      // 4. Belt-and-suspenders: also call removeReaction in case Discord
+      //    has already queued a server-side add before our interceptor ran
+      if (ReactionActions?.removeReaction) {
+        setTimeout(() => {
+          try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch (e) {
+            console.warn("[DTR] removeReaction threw:", e);
+          }
+        }, 50);
+      }
 
-      return false; // let ADD land so REMOVE has something to undo
+      return true; // swallow — no reaction added at all
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
