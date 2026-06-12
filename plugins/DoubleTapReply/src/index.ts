@@ -6,6 +6,7 @@ export default {
         const ChannelStore = findByStoreName("ChannelStore");
         const MessageStore = findByStoreName("MessageStore");
         const RemoveReaction = findByProps("removeReaction", "deleteReaction")
+        alert("RemoveReaction keys: " + Object.keys(RemoveReaction || {}).join(", "));
             ?? findByProps("removeReaction")
             ?? findByProps("deleteReaction");
 
