@@ -5,9 +5,6 @@ export default {
         const ReplyActions = findByProps("createPendingReply");
         const ChannelStore = findByStoreName("ChannelStore");
         const MessageStore = findByStoreName("MessageStore");
-        const KeyboardUtils = findByProps("hideKeyboard", "focusTextInput")
-            ?? findByProps("show", "dismiss", "scheduleLayoutAnimation")
-            ?? findByProps("focusTextInput");
 
         if (!ReplyActions || !ChannelStore || !MessageStore) {
             alert("[DTR] Missing modules");
@@ -18,29 +15,23 @@ export default {
 
         const interceptor = (event: any) => {
             if (event?.type !== "MESSAGE_REACTION_ADD") return false;
+            if (!event.optimistic) return false; // only intercept double-tap, not manual reacts
 
             const { channelId, messageId } = event;
             if (!channelId || !messageId) return false;
 
             const channel = ChannelStore.getChannel(channelId);
             const message = MessageStore.getMessage(channelId, messageId);
-
             if (!channel || !message) return false;
 
             ReplyActions.createPendingReply({
-            message,
-            channel,
-            shouldMention: true,
+                message,
+                channel,
+                shouldMention: true,
             });
-            
-            setTimeout(() => {
-                try {
-                    findByProps("focusTextInput")?.focusTextInput?.();
-                } catch {}
-            }, 300);
-            
-            return true;
-            };    
+
+            return true; // swallow the reaction
+        };
 
         FluxDispatcher._interceptors.push(interceptor);
         (this as any)._interceptor = interceptor;
