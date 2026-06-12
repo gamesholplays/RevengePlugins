@@ -17,33 +17,19 @@ export default {
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
     const blocked = new Set<string>();
 
-    let spying = false;
-    let spyEvents: string[] = [];
-
     const sheetInterceptor = (event: any) => {
       if (event?.type === "SHOW_ACTION_SHEET") {
         recentSheet = true;
         if (sheetTimer) clearTimeout(sheetTimer);
-
-        // Start 6s spy when action sheet opens
-        spying = true;
-        spyEvents = [];
-        setTimeout(() => {
-          spying = false;
-          alert("events during reply flow:\n" + [...new Set(spyEvents)].join("\n"));
-        }, 6000);
       }
       if (event?.type === "HIDE_ACTION_SHEET") {
         if (sheetTimer) clearTimeout(sheetTimer);
         sheetTimer = setTimeout(() => { recentSheet = false; }, 1000);
       }
-      if (spying) spyEvents.push(event.type);
       return false;
     };
 
     const interceptor = (event: any) => {
-      if (spying) spyEvents.push(event.type);
-
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
 
       const { channelId, messageId, emoji } = event;
@@ -66,7 +52,15 @@ export default {
       blocked.add(key);
       setTimeout(() => blocked.delete(key), 5000);
 
-      ReplyActions.createPendingReply({ message, channel, shouldMention: true });
+      // Dispatch CREATE_PENDING_REPLY through Flux so Discord's keyboard
+      // listener fires — same as tapping the real reply button
+      FluxDispatcher.dispatch({
+        type: "CREATE_PENDING_REPLY",
+        message,
+        channel,
+        shouldMention: true,
+        showMentionToggle: true,
+      });
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
