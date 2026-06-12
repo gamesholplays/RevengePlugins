@@ -15,8 +15,8 @@ export default {
 
         const interceptor = (event: any) => {
             if (event?.type !== "MESSAGE_REACTION_ADD") return false;
-            if (event.messageAuthorId) return false; // manual reacts always have messageAuthorId
-            if (event.optimistic) return false; // skip the second double-tap event
+            if (!event.optimistic) return false; // double-tap first event has optimistic:true
+            if (event.messageAuthorId) return false; // manual reacts have messageAuthorId
 
             const { channelId, messageId } = event;
             if (!channelId || !messageId) return false;
