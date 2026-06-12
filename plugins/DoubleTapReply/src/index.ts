@@ -14,19 +14,17 @@ export default {
       return;
     }
 
+    // Dump what ReactNative actually exports
+    alert("ReactNative keys:\n" + Object.keys(ReactNative ?? {}).join("\n"));
+
     const focusInput = () => {
       try {
         const TIS = (ReactNative as any)?.TextInputState;
         const lastFocused = TIS?.currentlyFocusedInput?.()
           ?? TIS?.currentlyFocusedField?.();
-        alert(
-          "lastFocused: " + lastFocused +
-          "\ntype: " + typeof lastFocused +
-          "\nTIS keys: " + Object.keys(TIS ?? {}).join(", ")
-        );
         if (lastFocused) TIS.focusTextInput(lastFocused);
       } catch (e: any) {
-        alert("focusInput error: " + e);
+        console.warn("[DTR] focusInput:", e);
       }
     };
 
