@@ -13,13 +13,21 @@ export default {
       return;
     }
 
-    // Dump all 4 action handler types
+    // Dump actual action type names from nodes
     try {
-      const ah = FluxDispatcher._actionHandlers;
-      const raw = ah?._dependencyGraph ?? ah;
-      alert("all action types:\n" + Object.keys(raw ?? {}).join("\n"));
+      const nodes = FluxDispatcher._actionHandlers?.nodes;
+      if (nodes) {
+        const types: string[] = Object.keys(nodes);
+        const matches = types.filter(t =>
+          t.includes("FOCUS") || t.includes("KEYBOARD") ||
+          t.includes("EDITOR") || t.includes("INPUT") || t.includes("CHAT")
+        );
+        alert("focus types:\n" + (matches.length ? matches.join("\n") : "none, total=" + types.length));
+      } else {
+        alert("no nodes");
+      }
     } catch (e: any) {
-      alert("ah error: " + e);
+      alert("nodes err: " + e);
     }
 
     const focusInput = () => {
@@ -30,10 +38,6 @@ export default {
           ?? TIS?.currentlyFocusedField?.();
         if (lastFocused) {
           TIS.focusTextInput(lastFocused);
-        } else {
-          const NM = RN.NativeModules;
-          NM?.AndroidKeyboard?.showKeyboard?.();
-          NM?.Keyboard?.show?.();
         }
       } catch (e: any) {
         console.warn("[DTR] focusInput:", e);
@@ -56,13 +60,6 @@ export default {
     };
 
     const interceptor = (event: any) => {
-      // Debug: alert on every MESSAGE_REACTION_ADD
-      if (event?.type === "MESSAGE_REACTION_ADD") {
-        alert("interceptor hit!\noptimistic=" + event.optimistic +
-              "\nauthorId=" + event.messageAuthorId +
-              "\nrecentSheet=" + recentSheet);
-      }
-
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
       if (event.optimistic !== true)  return false;
       if (event.messageAuthorId)      return false;
@@ -77,12 +74,18 @@ export default {
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      alert("MATCH - starting reply and swallowing reaction");
+      // Mutate the event so Discord's own handlers skip it
+      // (return true doesn't block in this Revenge version)
+      event.optimistic = false;
+      event.messageAuthorId = "0";
 
+      // 1. Start reply
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
+      // 2. Focus keyboard
       setTimeout(focusInput, 150);
 
+      // 3. Cancel network call
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
           try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
