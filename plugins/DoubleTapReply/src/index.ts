@@ -37,5 +37,8 @@ export default {
       if (event?.type === "UPDATE_FORCE_SHOW_DOUBLE_TAP_TO_REACT_BANNER") {
         // Dump full event once so we know what fields it carries
         if (!bannerDumped) {
-          bannerDumped = true;
-          alert("BANNER keys: " + Object
+            bannerDumped = true;
+            const keys = Object.keys(event).join(", ");
+            const full = JSON.stringify(event).slice(0, 400);
+            alert("BANNER keys: " + keys + "\nfull: " + full);
+}
