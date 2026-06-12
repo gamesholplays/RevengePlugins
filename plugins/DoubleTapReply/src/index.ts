@@ -2,26 +2,17 @@ import { findByProps, findByStoreName } from "@vendetta/metro";
 
 export default {
   onLoad() {
-    const ReplyActions   = findByProps("createPendingReply");
-    const ChannelStore   = findByStoreName("ChannelStore");
-    const MessageStore   = findByStoreName("MessageStore");
-    const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
+    const ReplyActions    = findByProps("createPendingReply");
+    const ChannelStore    = findByStoreName("ChannelStore");
+    const MessageStore    = findByStoreName("MessageStore");
+    const FluxDispatcher  = findByProps("_interceptors", "_subscriptions");
     const ReactionActions = findByProps("removeReaction", "removeEmojiReactions");
 
     if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
-      alert("[DTR] missing core modules:\n" +
-        "ReplyActions=" + !!ReplyActions + "\n" +
-        "ChannelStore=" + !!ChannelStore + "\n" +
-        "MessageStore=" + !!MessageStore + "\n" +
-        "FluxDispatcher=" + !!FluxDispatcher
-      );
+      console.error("[DTR] missing core modules");
       return;
     }
 
-    alert("[DTR] loaded OK\nReactionActions=" + !!ReactionActions + 
-          "\nDispatcher keys=" + Object.keys(FluxDispatcher).slice(0,6).join(", "));
-
-    // ── Sheet tracker ────────────────────────────────────────────────────
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -37,45 +28,62 @@ export default {
       return false;
     };
 
-    // ── Main interceptor ─────────────────────────────────────────────────
+    // Track the pending double-tap so we can match it to the ADD
+    let pendingDoubleTap: { channelId: string; messageId: string } | null = null;
+
     const interceptor = (event: any) => {
-      // Log EVERYTHING so we can see what double-tap actually fires
-      if (event?.type?.toLowerCase().includes("react")) {
-        alert("EVENT: " + event.type + 
-              "\noptimistic=" + event.optimistic + 
-              "\nauthorId=" + event.messageAuthorId +
-              "\nemojiName=" + event.emoji?.name);
+      // ── Step 1: catch the double-tap signal BEFORE network call ──────────
+      if (event?.type === "UPDATE_FORCE_SHOW_DOUBLE_TAP_TO_REACT_BANNER") {
+        if (recentSheet) return false;
+
+        const channelId = event.channelId;
+        const messageId = event.messageId;
+        if (!channelId || !messageId) return false;
+
+        const channel = ChannelStore.getChannel(channelId);
+        const message = MessageStore.getMessage(channelId, messageId);
+        if (!channel || !message) return false;
+
+        // Store so we can also block the ADD that follows
+        pendingDoubleTap = { channelId, messageId };
+        setTimeout(() => { pendingDoubleTap = null; }, 1000);
+
+        // Start reply
+        ReplyActions.createPendingReply({ message, channel, shouldMention: true });
+
+        // TODO: open keyboard here once we know the right event/function
+
+        return false; // let banner event through, we block the ADD below
       }
 
-      if (event?.type !== "MESSAGE_REACTION_ADD") return false;
-      if (!event.optimistic)     return false;
-      if (event.messageAuthorId) return false;
-      if (recentSheet)           return false;
-
-      const { channelId, messageId, emoji } = event;
-      if (!channelId || !messageId) return false;
-
-      const channel = ChannelStore.getChannel(channelId);
-      const message = MessageStore.getMessage(channelId, messageId);
-      if (!channel || !message) return false;
-
-      alert("[DTR] MATCH - starting reply, swallowing reaction");
-
-      // 1. Start reply
-      ReplyActions.createPendingReply({ message, channel, shouldMention: true });
-
-      // 2. Remove reaction server-side (belt+suspenders since we swallow the ADD)
-      if (ReactionActions?.removeReaction) {
-        setTimeout(() => {
-          try { 
-            ReactionActions.removeReaction(channelId, messageId, emoji);
-          } catch (e) {
-            alert("[DTR] removeReaction error: " + e);
+      // ── Step 2: block the optimistic ADD that follows ────────────────────
+      if (event?.type === "MESSAGE_REACTION_ADD" && event.optimistic === true && !event.messageAuthorId) {
+        if (pendingDoubleTap) {
+          // Also call removeReaction to cancel any in-flight network request
+          if (ReactionActions?.removeReaction) {
+            const { channelId, messageId } = pendingDoubleTap;
+            const emoji = event.emoji;
+            setTimeout(() => {
+              try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
+            }, 50);
           }
-        }, 50);
+          return true; // swallow the ADD
+        }
       }
 
-      return true; // swallow the ADD
+      // ── Step 3: block the server confirmation if we started a reply ──────
+      if (
+        event?.type === "MESSAGE_REACTION_ADD" &&
+        event.optimistic !== true &&
+        event.messageAuthorId &&
+        pendingDoubleTap &&
+        event.channelId === pendingDoubleTap.channelId &&
+        event.messageId === pendingDoubleTap.messageId
+      ) {
+        return true; // swallow server echo too
+      }
+
+      return false;
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
