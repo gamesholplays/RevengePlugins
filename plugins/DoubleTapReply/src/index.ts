@@ -2,39 +2,26 @@ import { findByProps, findByStoreName } from "@vendetta/metro";
 
 export default {
   onLoad() {
-    const ReplyActions    = findByProps("createPendingReply");
-    const ChannelStore    = findByStoreName("ChannelStore");
-    const MessageStore    = findByStoreName("MessageStore");
-    const FluxDispatcher  = findByProps("_interceptors", "_subscriptions");
-
-    // Real reaction remove module — [6834]
+    const ReplyActions   = findByProps("createPendingReply");
+    const ChannelStore   = findByStoreName("ChannelStore");
+    const MessageStore   = findByStoreName("MessageStore");
+    const FluxDispatcher = findByProps("_interceptors", "_subscriptions");
     const ReactionActions = findByProps("removeReaction", "removeEmojiReactions");
 
-    // Real keyboard focus module — [1612]
-    const ChatInputFocus  = findByProps("getIsAnyChatInputFocused");
-
     if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
-      console.error("[DTR] Missing core modules");
+      alert("[DTR] missing core modules:\n" +
+        "ReplyActions=" + !!ReplyActions + "\n" +
+        "ChannelStore=" + !!ChannelStore + "\n" +
+        "MessageStore=" + !!MessageStore + "\n" +
+        "FluxDispatcher=" + !!FluxDispatcher
+      );
       return;
     }
 
-    if (!ReactionActions) console.warn("[DTR] removeReaction module not found");
-    if (!ChatInputFocus)  console.warn("[DTR] ChatInputFocus module not found");
+    alert("[DTR] loaded OK\nReactionActions=" + !!ReactionActions + 
+          "\nDispatcher keys=" + Object.keys(FluxDispatcher).slice(0,6).join(", "));
 
-    // Log what focus module actually exports so we know the setter name
-    if (ChatInputFocus) {
-      console.info("[DTR] ChatInputFocus keys:", Object.keys(ChatInputFocus).join(", "));
-    }
-
-    const focusInput = () => {
-      if (!ChatInputFocus) return;
-      // Try every plausible setter name — we'll know the real one from the log above
-      try { ChatInputFocus.setsIsAnyInputFocused?.(true); } catch {}
-      try { ChatInputFocus.setIsAnyChatInputFocused?.(true); } catch {}
-      try { ChatInputFocus.focusChatInput?.(); } catch {}
-    };
-
-    // ── Sheet tracker ──────────────────────────────────────────────────────
+    // ── Sheet tracker ────────────────────────────────────────────────────
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -50,8 +37,16 @@ export default {
       return false;
     };
 
-    // ── Main interceptor ───────────────────────────────────────────────────
+    // ── Main interceptor ─────────────────────────────────────────────────
     const interceptor = (event: any) => {
+      // Log EVERYTHING so we can see what double-tap actually fires
+      if (event?.type?.toLowerCase().includes("react")) {
+        alert("EVENT: " + event.type + 
+              "\noptimistic=" + event.optimistic + 
+              "\nauthorId=" + event.messageAuthorId +
+              "\nemojiName=" + event.emoji?.name);
+      }
+
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
       if (!event.optimistic)     return false;
       if (event.messageAuthorId) return false;
@@ -64,27 +59,23 @@ export default {
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      // 1. Block the ADD entirely — return true swallows it before Discord sees it
-      //    This means no optimistic update, no server call, nothing to undo
-      //    We must call removeReaction ourselves to be safe if anything slipped through
+      alert("[DTR] MATCH - starting reply, swallowing reaction");
 
-      // 2. Start reply
+      // 1. Start reply
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-      // 3. Open keyboard after reply bar renders
-      setTimeout(focusInput, 150);
-
-      // 4. Belt-and-suspenders: also call removeReaction in case Discord
-      //    has already queued a server-side add before our interceptor ran
+      // 2. Remove reaction server-side (belt+suspenders since we swallow the ADD)
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
-          try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch (e) {
-            console.warn("[DTR] removeReaction threw:", e);
+          try { 
+            ReactionActions.removeReaction(channelId, messageId, emoji);
+          } catch (e) {
+            alert("[DTR] removeReaction error: " + e);
           }
         }, 50);
       }
 
-      return true; // swallow — no reaction added at all
+      return true; // swallow the ADD
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
