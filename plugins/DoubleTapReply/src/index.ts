@@ -5,6 +5,7 @@ export default {
         const ReplyActions = findByProps("createPendingReply");
         const ChannelStore = findByStoreName("ChannelStore");
         const MessageStore = findByStoreName("MessageStore");
+        const RemoveReaction = findByProps("removeReaction") ?? findByProps("deleteReaction");
 
         if (!ReplyActions || !ChannelStore || !MessageStore) {
             alert("[DTR] Missing modules");
@@ -22,8 +23,6 @@ export default {
             }
             if (event?.type === "HIDE_ACTION_SHEET") {
                 if (sheetTimer) clearTimeout(sheetTimer);
-                // Keep recentSheet true for 1000ms after sheet closes
-                // to catch the reaction event that fires after hide
                 sheetTimer = setTimeout(() => {
                     recentSheet = false;
                 }, 1000);
@@ -35,7 +34,7 @@ export default {
             if (event?.type !== "MESSAGE_REACTION_ADD") return false;
             if (!event.optimistic) return false;
             if (event.messageAuthorId) return false;
-            if (recentSheet) return false; // came from action sheet, let it through
+            if (recentSheet) return false;
 
             const { channelId, messageId } = event;
             if (!channelId || !messageId) return false;
@@ -50,23 +49,5 @@ export default {
                 shouldMention: true,
             });
 
-            return true;
-        };
-
-        FluxDispatcher._interceptors.push(sheetInterceptor);
-        FluxDispatcher._interceptors.push(interceptor);
-        (this as any)._interceptor = interceptor;
-        (this as any)._sheetInterceptor = sheetInterceptor;
-        (this as any)._dispatcher = FluxDispatcher;
-    },
-
-    onUnload() {
-        const { _interceptor, _sheetInterceptor, _dispatcher } = this as any;
-        if (_dispatcher) {
-            [_interceptor, _sheetInterceptor].forEach(i => {
-                const idx = _dispatcher._interceptors.indexOf(i);
-                if (idx !== -1) _dispatcher._interceptors.splice(idx, 1);
-            });
-        }
-    },
-};
+            // Remove the reaction that was added natively
+            if (RemoveReaction)
