@@ -5,7 +5,9 @@ export default {
         const ReplyActions = findByProps("createPendingReply");
         const ChannelStore = findByStoreName("ChannelStore");
         const MessageStore = findByStoreName("MessageStore");
-        const RemoveReaction = findByProps("removeReaction") ?? findByProps("deleteReaction");
+        const RemoveReaction = findByProps("removeReaction", "deleteReaction")
+            ?? findByProps("removeReaction")
+            ?? findByProps("deleteReaction");
 
         if (!ReplyActions || !ChannelStore || !MessageStore) {
             alert("[DTR] Missing modules");
@@ -49,5 +51,28 @@ export default {
                 shouldMention: true,
             });
 
-            // Remove the reaction that was added natively
-            if (RemoveReaction)
+            const removeFn = RemoveReaction?.removeReaction ?? RemoveReaction?.deleteReaction;
+            setTimeout(() => {
+                try { removeFn?.(channelId, messageId, event.emoji); } catch {}
+            }, 100);
+
+            return true;
+        };
+
+        FluxDispatcher._interceptors.push(sheetInterceptor);
+        FluxDispatcher._interceptors.push(interceptor);
+        (this as any)._interceptor = interceptor;
+        (this as any)._sheetInterceptor = sheetInterceptor;
+        (this as any)._dispatcher = FluxDispatcher;
+    },
+
+    onUnload() {
+        const { _interceptor, _sheetInterceptor, _dispatcher } = this as any;
+        if (_dispatcher) {
+            [_interceptor, _sheetInterceptor].forEach(i => {
+                const idx = _dispatcher._interceptors.indexOf(i);
+                if (idx !== -1) _dispatcher._interceptors.splice(idx, 1);
+            });
+        }
+    },
+};
