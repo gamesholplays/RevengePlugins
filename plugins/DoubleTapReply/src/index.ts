@@ -9,16 +9,12 @@ export default {
     const ReactionActions = findByProps("removeReaction", "removeEmojiReactions");
 
     if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
-      alert("[DTR] missing modules");
+      console.error("[DTR] missing core modules");
       return;
     }
 
-    alert("[DTR] dispatcher keys:\n" + Object.keys(FluxDispatcher).join("\n"));
-
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
-    let pendingDoubleTap: { channelId: string; messageId: string } | null = null;
-    let bannerDumped = false;
 
     const sheetInterceptor = (event: any) => {
       if (event?.type === "SHOW_ACTION_SHEET") {
@@ -33,57 +29,38 @@ export default {
     };
 
     const interceptor = (event: any) => {
-      if (event?.type === "UPDATE_FORCE_SHOW_DOUBLE_TAP_TO_REACT_BANNER") {
-        if (!bannerDumped) {
-          bannerDumped = true;
-          const keys = Object.keys(event).join(", ");
-          const full = JSON.stringify(event).slice(0, 400);
-          alert("BANNER keys: " + keys + "\nfull: " + full);
-        }
+      // Only catch double-tap reactions:
+      // optimistic=true means local gesture, no messageAuthorId means not a manual long-press pick
+      if (event?.type !== "MESSAGE_REACTION_ADD") return false;
+      if (event.optimistic !== true)  return false;
+      if (event.messageAuthorId)      return false;
+      if (recentSheet)                return false;
 
-        if (recentSheet) return false;
+      const channelId = event.channelId;
+      const messageId = event.messageId;
+      const emoji     = event.emoji;
+      if (!channelId || !messageId) return false;
 
-        const channelId = event.channelId ?? event.channel_id;
-        const messageId = event.messageId ?? event.message_id ?? event.id;
-        if (!channelId || !messageId) return false;
+      const channel = ChannelStore.getChannel(channelId);
+      const message = MessageStore.getMessage(channelId, messageId);
+      if (!channel || !message) return false;
 
-        const channel = ChannelStore.getChannel(channelId);
-        const message = MessageStore.getMessage(channelId, messageId);
-        if (!channel || !message) return false;
+      // 1. Start the reply
+      ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-        pendingDoubleTap = { channelId, messageId };
-        setTimeout(() => { pendingDoubleTap = null; }, 1000);
-
-        ReplyActions.createPendingReply({ message, channel, shouldMention: true });
-
-        return false;
+      // 2. Cancel the reaction — call removeReaction to reverse the server-side
+      //    add that Discord already fired before our interceptor ran.
+      //    We also return true to swallow the optimistic store update.
+      if (ReactionActions?.removeReaction) {
+        setTimeout(() => {
+          try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
+        }, 50);
       }
 
-      if (event?.type === "MESSAGE_REACTION_ADD" && event.optimistic === true && !event.messageAuthorId) {
-        if (pendingDoubleTap) {
-          if (ReactionActions?.removeReaction) {
-            const { channelId, messageId } = pendingDoubleTap;
-            const emoji = event.emoji;
-            setTimeout(() => {
-              try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
-            }, 50);
-          }
-          return true;
-        }
-      }
+      // 3. Keyboard — placeholder until we find the right action type
+      // TODO: dispatch focus action here
 
-      if (
-        event?.type === "MESSAGE_REACTION_ADD" &&
-        event.optimistic !== true &&
-        event.messageAuthorId &&
-        pendingDoubleTap &&
-        event.channelId === pendingDoubleTap.channelId &&
-        event.messageId === pendingDoubleTap.messageId
-      ) {
-        return true;
-      }
-
-      return false;
+      return true; // swallow the optimistic ADD from the store
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
