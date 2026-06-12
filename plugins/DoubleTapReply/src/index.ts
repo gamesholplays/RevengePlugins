@@ -5,6 +5,9 @@ export default {
         const ReplyActions = findByProps("createPendingReply");
         const ChannelStore = findByStoreName("ChannelStore");
         const MessageStore = findByStoreName("MessageStore");
+        const KeyboardUtils = findByProps("hideKeyboard", "focusTextInput")
+            ?? findByProps("show", "dismiss", "scheduleLayoutAnimation")
+            ?? findByProps("focusTextInput");
 
         if (!ReplyActions || !ChannelStore || !MessageStore) {
             alert("[DTR] Missing modules");
@@ -30,7 +33,17 @@ export default {
                 shouldMention: true,
             });
 
-            return true; // swallow the reaction, trigger reply instead
+            // Try to focus the chat input / show keyboard
+            setTimeout(() => {
+                try {
+                    KeyboardUtils?.focusTextInput?.();
+                } catch {}
+                try {
+                    findByProps("focus", "blur", "isFocused")?.focus?.();
+                } catch {}
+            }, 100);
+
+            return true;
         };
 
         FluxDispatcher._interceptors.push(interceptor);
