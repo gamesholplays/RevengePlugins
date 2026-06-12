@@ -28,23 +28,19 @@ export default {
             if (!channel || !message) return false;
 
             ReplyActions.createPendingReply({
-                message,
-                channel,
-                shouldMention: true,
+            message,
+            channel,
+            shouldMention: true,
             });
-
-            // Try to focus the chat input / show keyboard
+            
             setTimeout(() => {
                 try {
-                    KeyboardUtils?.focusTextInput?.();
+                    findByProps("focusTextInput")?.focusTextInput?.();
                 } catch {}
-                try {
-                    findByProps("focus", "blur", "isFocused")?.focus?.();
-                } catch {}
-            }, 100);
-
+            }, 300);
+            
             return true;
-        };
+            };    
 
         FluxDispatcher._interceptors.push(interceptor);
         (this as any)._interceptor = interceptor;
