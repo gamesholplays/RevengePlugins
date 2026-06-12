@@ -13,32 +13,13 @@ export default {
       return;
     }
 
-    // Dump actual action type names from nodes
-    try {
-      const nodes = FluxDispatcher._actionHandlers?.nodes;
-      if (nodes) {
-        const types: string[] = Object.keys(nodes);
-        const matches = types.filter(t =>
-          t.includes("FOCUS") || t.includes("KEYBOARD") ||
-          t.includes("EDITOR") || t.includes("INPUT") || t.includes("CHAT")
-        );
-        alert("focus types:\n" + (matches.length ? matches.join("\n") : "none, total=" + types.length));
-      } else {
-        alert("no nodes");
-      }
-    } catch (e: any) {
-      alert("nodes err: " + e);
-    }
-
     const focusInput = () => {
       try {
         const RN = require("react-native");
         const TIS = RN.TextInputState;
         const lastFocused = TIS?.currentlyFocusedInput?.()
           ?? TIS?.currentlyFocusedField?.();
-        if (lastFocused) {
-          TIS.focusTextInput(lastFocused);
-        }
+        if (lastFocused) TIS.focusTextInput(lastFocused);
       } catch (e: any) {
         console.warn("[DTR] focusInput:", e);
       }
@@ -46,6 +27,10 @@ export default {
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Track intercepted reactions so we can swallow the server echo too
+    // key = "channelId:messageId:emojiName"
+    const blocked = new Set<string>();
 
     const sheetInterceptor = (event: any) => {
       if (event?.type === "SHOW_ACTION_SHEET") {
@@ -61,38 +46,47 @@ export default {
 
     const interceptor = (event: any) => {
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
-      if (event.optimistic !== true)  return false;
-      if (event.messageAuthorId)      return false;
-      if (recentSheet)                return false;
 
-      const channelId = event.channelId;
-      const messageId = event.messageId;
-      const emoji     = event.emoji;
+      const { channelId, messageId, emoji } = event;
       if (!channelId || !messageId) return false;
+
+      const key = channelId + ":" + messageId + ":" + (emoji?.name ?? emoji?.id ?? "");
+
+      // Swallow the server echo for reactions we already intercepted
+      if (blocked.has(key)) {
+        blocked.delete(key);
+        return true;
+      }
+
+      // Skip manual long-press reactions
+      if (recentSheet) return false;
+
+      // Only intercept optimistic (local gesture) events
+      if (!event.optimistic) return false;
 
       const channel = ChannelStore.getChannel(channelId);
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      // Mutate the event so Discord's own handlers skip it
-      // (return true doesn't block in this Revenge version)
-      event.optimistic = false;
-      event.messageAuthorId = "0";
+      // Mark this reaction to block the server echo
+      blocked.add(key);
+      // Clean up in case server echo never arrives
+      setTimeout(() => blocked.delete(key), 5000);
 
       // 1. Start reply
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-      // 2. Focus keyboard
+      // 2. Open keyboard
       setTimeout(focusInput, 150);
 
-      // 3. Cancel network call
+      // 3. Cancel network call — tell server to remove it
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
           try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
         }, 50);
       }
 
-      return true;
+      return true; // swallow optimistic store update
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
