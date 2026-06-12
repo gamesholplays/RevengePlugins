@@ -13,26 +13,15 @@ export default {
       return;
     }
 
-    // Dump _actionHandlers once so we can find the keyboard action type
+    // Dump all 4 action handler types
     try {
       const ah = FluxDispatcher._actionHandlers;
-      if (ah) {
-        const raw = ah._dependencyGraph ?? ah;
-        const types: string[] = Object.keys(raw);
-        const matches = types.filter(t =>
-          t.includes("FOCUS") || t.includes("KEYBOARD") ||
-          t.includes("EDITOR") || t.includes("INPUT") || t.includes("CHAT")
-        );
-        alert("focus/keyboard action types:\n" +
-          (matches.length ? matches.join("\n") : "none found, total=" + types.length));
-      } else {
-        alert("_actionHandlers missing");
-      }
+      const raw = ah?._dependencyGraph ?? ah;
+      alert("all action types:\n" + Object.keys(raw ?? {}).join("\n"));
     } catch (e: any) {
-      alert("_actionHandlers err: " + e);
+      alert("ah error: " + e);
     }
 
-    // ── Keyboard via React Native TextInputState ───────────────────────────
     const focusInput = () => {
       try {
         const RN = require("react-native");
@@ -42,7 +31,6 @@ export default {
         if (lastFocused) {
           TIS.focusTextInput(lastFocused);
         } else {
-          // Fallback: try native keyboard modules
           const NM = RN.NativeModules;
           NM?.AndroidKeyboard?.showKeyboard?.();
           NM?.Keyboard?.show?.();
@@ -52,7 +40,6 @@ export default {
       }
     };
 
-    // ── Sheet tracker ──────────────────────────────────────────────────────
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -68,8 +55,14 @@ export default {
       return false;
     };
 
-    // ── Main interceptor ───────────────────────────────────────────────────
     const interceptor = (event: any) => {
+      // Debug: alert on every MESSAGE_REACTION_ADD
+      if (event?.type === "MESSAGE_REACTION_ADD") {
+        alert("interceptor hit!\noptimistic=" + event.optimistic +
+              "\nauthorId=" + event.messageAuthorId +
+              "\nrecentSheet=" + recentSheet);
+      }
+
       if (event?.type !== "MESSAGE_REACTION_ADD") return false;
       if (event.optimistic !== true)  return false;
       if (event.messageAuthorId)      return false;
@@ -84,20 +77,19 @@ export default {
       const message = MessageStore.getMessage(channelId, messageId);
       if (!channel || !message) return false;
 
-      // 1. Start reply
+      alert("MATCH - starting reply and swallowing reaction");
+
       ReplyActions.createPendingReply({ message, channel, shouldMention: true });
 
-      // 2. Focus keyboard after reply bar renders
       setTimeout(focusInput, 150);
 
-      // 3. Cancel the reaction network call
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
           try { ReactionActions.removeReaction(channelId, messageId, emoji); } catch {}
         }, 50);
       }
 
-      return true; // swallow optimistic store update
+      return true;
     };
 
     FluxDispatcher._interceptors.push(sheetInterceptor);
