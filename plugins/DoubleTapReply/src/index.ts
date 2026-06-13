@@ -14,24 +14,36 @@ export default {
       return;
     }
 
-    // Find chat input by looking for a module that holds its ref
-    // Discord's ChatInput component stores its TextInput ref somewhere
-    const ChatInput = findByProps("insertText", "focus")
-      ?? findByProps("insertText")
-      ?? findByProps("focus", "blur", "isFocused");
+    const { UIManager } = ReactNative as any;
 
-    alert("ChatInput: " + !!ChatInput + (ChatInput ? "\nkeys: " + Object.keys(ChatInput).join(", ") : ""));
+    // Dump what DCDChatInput exposes
+    const dcdKeys = Object.keys(UIManager?.DCDChatInput ?? {});
+    alert("DCDChatInput keys: " + dcdKeys.join(", "));
 
     const focusInput = () => {
       try {
-        if (ChatInput?.focus) { ChatInput.focus(); return; }
-        // Try UIManager with tag 1 (root) — walk up
-        const { UIManager } = ReactNative as any;
-        alert("UIManager keys: " + Object.keys(UIManager ?? {}).filter((k: string) =>
-          k.toLowerCase().includes("focus") || k.toLowerCase().includes("input")
-        ).join(", "));
+        // DCDChatInput is a native view manager — find its tag and focus it
+        // AndroidTextInput is the standard RN TextInput native module
+        const AndroidTextInput = UIManager?.AndroidTextInput;
+        const dcd = UIManager?.DCDChatInput;
+
+        // Try calling focus command on DCDChatInput
+        if (dcd?.Commands?.focus != null) {
+          // Need the view tag — find it via AccessibilityFocusView or scan
+          UIManager.dispatchViewManagerCommand(
+            dcd.Commands.focus,
+            dcd.Commands.focus,
+            []
+          );
+          return;
+        }
+
+        // Try AndroidTextInput focus command
+        if (AndroidTextInput?.Commands?.focusTextInput != null) {
+          alert("AndroidTextInput commands: " + Object.keys(AndroidTextInput.Commands).join(", "));
+        }
       } catch (e: any) {
-        console.warn("[DTR] focusInput:", e);
+        alert("focusInput error: " + e);
       }
     };
 
