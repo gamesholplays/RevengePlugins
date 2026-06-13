@@ -25,7 +25,7 @@ export default {
       }
       if (event?.type === "HIDE_ACTION_SHEET") {
         if (sheetTimer) clearTimeout(sheetTimer);
-        sheetTimer = setTimeout(() => { recentSheet = false; }, 1000);
+        sheetTimer = setTimeout(() => { recentSheet = false; }, 2000);
       }
       // Capture the real CREATE_PENDING_REPLY payload once
       if (event?.type === "CREATE_PENDING_REPLY" && !replyPayloadDumped) {
