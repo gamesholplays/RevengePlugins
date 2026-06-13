@@ -13,12 +13,11 @@ export default {
       return;
     }
 
-    // Check what vendetta/bunny exposes for UI access
-    const vendetta = (globalThis as any).vendetta;
-    const bunny = (globalThis as any).bunny;
+    const vui = (globalThis as any).vendetta?.ui;
+    const bui = (globalThis as any).bunny?.ui;
     alert(
-      "vendetta keys: " + Object.keys(vendetta ?? {}).join(", ") + "\n\n" +
-      "bunny keys: " + Object.keys(bunny ?? {}).join(", ")
+      "vendetta.ui keys: " + Object.keys(vui ?? {}).join(", ") + "\n\n" +
+      "bunny.ui keys: " + Object.keys(bui ?? {}).join(", ")
     );
 
     let recentSheet = false;
