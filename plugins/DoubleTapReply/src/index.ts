@@ -7,33 +7,18 @@ export default {
     const MessageStore    = findByStoreName("MessageStore");
     const FluxDispatcher  = findByProps("_interceptors", "_subscriptions");
     const ReactionActions = findByProps("removeReaction", "removeEmojiReactions");
-    const ChatInputUtils  = findByProps("getChatInputRef", "getBestActiveInput");
 
     if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
       console.error("[DTR] missing core modules");
       return;
     }
 
-    const focusInput = () => {
-      try {
-        const ref = ChatInputUtils?.getChatInputRef?.();
-        const best = ChatInputUtils?.getBestActiveInput?.();
-        // Log what we get at this point in time
-        alert(
-          "ref type=" + typeof ref + " keys=" + Object.keys(ref ?? {}).join(",") +
-          "\nbest type=" + typeof best + " keys=" + Object.keys(best ?? {}).join(",") +
-          "\nref.focus=" + typeof ref?.focus +
-          "\nref.current=" + typeof ref?.current +
-          "\nref.current.focus=" + typeof ref?.current?.focus
-        );
-        if (ref?.focus) { ref.focus(); return; }
-        if (ref?.current?.focus) { ref.current.focus(); return; }
-        if (best?.focus) { best.focus(); return; }
-        if (best?.current?.focus) { best.current.focus(); return; }
-      } catch (e: any) {
-        alert("focusInput error: " + e);
-      }
-    };
+    const vui = (globalThis as any).vendetta?.ui;
+    const bui = (globalThis as any).bunny?.ui;
+    alert(
+      "vendetta.ui keys: " + Object.keys(vui ?? {}).join(", ") + "\n\n" +
+      "bunny.ui keys: " + Object.keys(bui ?? {}).join(", ")
+    );
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -78,16 +63,9 @@ export default {
         type: "CREATE_PENDING_REPLY",
         message,
         channel,
-        shouldMention: false,
+        shouldMention: true,
         showMentionToggle: true,
-        mediaMention: false,
-        source: "action_sheet",
       });
-
-      // Try at 150ms, 300ms, 500ms in case it takes time to mount
-      setTimeout(focusInput, 150);
-      setTimeout(focusInput, 300);
-      setTimeout(focusInput, 500);
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
