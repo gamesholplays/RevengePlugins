@@ -1,5 +1,4 @@
 import { findByProps, findByStoreName } from "@vendetta/metro";
-import { ReactNative } from "@vendetta/metro/common";
 
 export default {
   onLoad() {
@@ -8,51 +7,31 @@ export default {
     const MessageStore    = findByStoreName("MessageStore");
     const FluxDispatcher  = findByProps("_interceptors", "_subscriptions");
     const ReactionActions = findByProps("removeReaction", "removeEmojiReactions");
+    const ChatInputUtils  = findByProps("getChatInputRef", "getBestActiveInput");
 
     if (!ReplyActions || !ChannelStore || !MessageStore || !FluxDispatcher) {
       console.error("[DTR] missing core modules");
       return;
     }
 
-    const { UIManager, findNodeHandle } = ReactNative as any;
-
-    // DCDChatInput is Discord's native chat input component
-    // We need to find its view tag to call focusTextInput on it
-    // The tag is an integer assigned by RN to each native view
-    // We can find it by locating the component instance
-
-    // Try to find DCDChatInput ref via a module that holds it
-    const ChatInputUtils = findByProps("insertText", "clearText")
-      ?? findByProps("insertText")
-      ?? findByProps("clearText");
-
     alert("ChatInputUtils: " + !!ChatInputUtils +
           (ChatInputUtils ? "\nkeys: " + Object.keys(ChatInputUtils).join(", ") : ""));
 
     const focusInput = () => {
       try {
-        // Scan all modules for anything that looks like a ref to DCDChatInput
-        const reg = (globalThis as any).modules;
-        const candidates: string[] = [];
-        for (const id in reg) {
-          try {
-            const exp = reg[id]?.publicModule?.exports ?? reg[id]?.exports;
-            if (!exp || typeof exp !== "object") continue;
-            const keys = Object.keys(exp);
-            if (keys.some((k: string) => k.toLowerCase().includes("chatinput") ||
-                k.toLowerCase().includes("textinput") ||
-                k.toLowerCase().includes("inputref"))) {
-              candidates.push("[" + id + "] " + keys.join(", "));
-            }
-          } catch {}
+        const ref = ChatInputUtils?.getChatInputRef?.()
+          ?? ChatInputUtils?.getBestActiveInput?.();
+        if (ref?.focus) {
+          ref.focus();
+        } else if (ref?.current?.focus) {
+          ref.current.focus();
+        } else {
+          console.warn("[DTR] no focusable ref, ref=", ref);
         }
-        alert("candidates:\n" + candidates.slice(0, 8).join("\n\n") || "none");
       } catch (e: any) {
-        alert("scan error: " + e);
+        console.warn("[DTR] focusInput:", e);
       }
     };
-
-    setTimeout(focusInput, 1000);
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -102,6 +81,8 @@ export default {
         mediaMention: false,
         source: "action_sheet",
       });
+
+      setTimeout(focusInput, 150);
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
