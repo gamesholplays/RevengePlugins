@@ -14,8 +14,24 @@ export default {
       return;
     }
 
-    alert("ChatInputUtils: " + !!ChatInputUtils +
-          (ChatInputUtils ? "\nkeys: " + Object.keys(ChatInputUtils).join(", ") : ""));
+    // Inspect what getChatInputRef returns at runtime
+    setTimeout(() => {
+      try {
+        const ref = ChatInputUtils?.getChatInputRef?.();
+        const best = ChatInputUtils?.getBestActiveInput?.();
+        alert(
+          "getChatInputRef: " + JSON.stringify(ref, null, 2).slice(0, 200) +
+          "\ntype: " + typeof ref +
+          "\nkeys: " + Object.keys(ref ?? {}).join(", ") +
+          "\n\ngetBestActiveInput: " + typeof best +
+          "\nbestKeys: " + Object.keys(best ?? {}).join(", ") +
+          "\nhasFocus: " + typeof best?.focus +
+          "\nhasCurrentFocus: " + typeof best?.current?.focus
+        );
+      } catch (e: any) {
+        alert("inspect error: " + e);
+      }
+    }, 1000);
 
     const focusInput = () => {
       try {
@@ -25,8 +41,6 @@ export default {
           ref.focus();
         } else if (ref?.current?.focus) {
           ref.current.focus();
-        } else {
-          console.warn("[DTR] no focusable ref, ref=", ref);
         }
       } catch (e: any) {
         console.warn("[DTR] focusInput:", e);
