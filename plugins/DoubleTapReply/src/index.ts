@@ -13,12 +13,40 @@ export default {
       return;
     }
 
-    const vui = (globalThis as any).vendetta?.ui;
-    const bui = (globalThis as any).bunny?.ui;
-    alert(
-      "vendetta.ui keys: " + Object.keys(vui ?? {}).join(", ") + "\n\n" +
-      "bunny.ui keys: " + Object.keys(bui ?? {}).join(", ")
-    );
+    const focusInput = () => {
+      try {
+        // Find all RN view instances that have a focus() method
+        // by walking __reactFiber keys on the root container
+        const rootKeys = Object.keys(globalThis).filter(k => k.startsWith("__reactFiber"));
+        let found = false;
+        for (const key of rootKeys) {
+          const fiber = (globalThis as any)[key];
+          if (!fiber) continue;
+          // Walk fiber tree looking for TextInput with onChangeText
+          const visit = (node: any, depth: number) => {
+            if (!node || depth > 200) return;
+            try {
+              if (
+                node.stateNode &&
+                typeof node.stateNode.focus === "function" &&
+                node.memoizedProps?.onChangeText
+              ) {
+                node.stateNode.focus();
+                found = true;
+                return;
+              }
+              visit(node.child, depth + 1);
+              if (!found) visit(node.sibling, depth + 1);
+            } catch {}
+          };
+          visit(fiber, 0);
+          if (found) break;
+        }
+        if (!found) console.warn("[DTR] no TextInput found to focus");
+      } catch (e: any) {
+        console.warn("[DTR] focusInput:", e);
+      }
+    };
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -66,6 +94,9 @@ export default {
         shouldMention: true,
         showMentionToggle: true,
       });
+
+      // Wait for reply bar to mount then focus the chat input
+      setTimeout(focusInput, 300);
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
