@@ -14,36 +14,24 @@ export default {
       return;
     }
 
-    // Inspect what getChatInputRef returns at runtime
-    setTimeout(() => {
+    const focusInput = () => {
       try {
         const ref = ChatInputUtils?.getChatInputRef?.();
         const best = ChatInputUtils?.getBestActiveInput?.();
+        // Log what we get at this point in time
         alert(
-          "getChatInputRef: " + JSON.stringify(ref, null, 2).slice(0, 200) +
-          "\ntype: " + typeof ref +
-          "\nkeys: " + Object.keys(ref ?? {}).join(", ") +
-          "\n\ngetBestActiveInput: " + typeof best +
-          "\nbestKeys: " + Object.keys(best ?? {}).join(", ") +
-          "\nhasFocus: " + typeof best?.focus +
-          "\nhasCurrentFocus: " + typeof best?.current?.focus
+          "ref type=" + typeof ref + " keys=" + Object.keys(ref ?? {}).join(",") +
+          "\nbest type=" + typeof best + " keys=" + Object.keys(best ?? {}).join(",") +
+          "\nref.focus=" + typeof ref?.focus +
+          "\nref.current=" + typeof ref?.current +
+          "\nref.current.focus=" + typeof ref?.current?.focus
         );
+        if (ref?.focus) { ref.focus(); return; }
+        if (ref?.current?.focus) { ref.current.focus(); return; }
+        if (best?.focus) { best.focus(); return; }
+        if (best?.current?.focus) { best.current.focus(); return; }
       } catch (e: any) {
-        alert("inspect error: " + e);
-      }
-    }, 1000);
-
-    const focusInput = () => {
-      try {
-        const ref = ChatInputUtils?.getChatInputRef?.()
-          ?? ChatInputUtils?.getBestActiveInput?.();
-        if (ref?.focus) {
-          ref.focus();
-        } else if (ref?.current?.focus) {
-          ref.current.focus();
-        }
-      } catch (e: any) {
-        console.warn("[DTR] focusInput:", e);
+        alert("focusInput error: " + e);
       }
     };
 
@@ -96,7 +84,10 @@ export default {
         source: "action_sheet",
       });
 
+      // Try at 150ms, 300ms, 500ms in case it takes time to mount
       setTimeout(focusInput, 150);
+      setTimeout(focusInput, 300);
+      setTimeout(focusInput, 500);
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
