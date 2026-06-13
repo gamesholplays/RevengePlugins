@@ -1,4 +1,5 @@
 import { findByProps, findByStoreName } from "@vendetta/metro";
+import { ReactNative } from "@vendetta/metro/common";
 
 export default {
   onLoad() {
@@ -12,6 +13,29 @@ export default {
       console.error("[DTR] missing core modules");
       return;
     }
+
+    // Find chat input by looking for a module that holds its ref
+    // Discord's ChatInput component stores its TextInput ref somewhere
+    const ChatInput = findByProps("insertText", "focus")
+      ?? findByProps("insertText")
+      ?? findByProps("focus", "blur", "isFocused");
+
+    alert("ChatInput: " + !!ChatInput + (ChatInput ? "\nkeys: " + Object.keys(ChatInput).join(", ") : ""));
+
+    const focusInput = () => {
+      try {
+        if (ChatInput?.focus) { ChatInput.focus(); return; }
+        // Try UIManager with tag 1 (root) — walk up
+        const { UIManager } = ReactNative as any;
+        alert("UIManager keys: " + Object.keys(UIManager ?? {}).filter((k: string) =>
+          k.toLowerCase().includes("focus") || k.toLowerCase().includes("input")
+        ).join(", "));
+      } catch (e: any) {
+        console.warn("[DTR] focusInput:", e);
+      }
+    };
+
+    setTimeout(focusInput, 1000);
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
