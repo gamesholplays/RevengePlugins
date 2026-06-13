@@ -13,16 +13,10 @@ export default {
       return;
     }
 
-    const vui = (globalThis as any).vendetta?.ui;
-    const bui = (globalThis as any).bunny?.ui;
-    alert(
-      "vendetta.ui keys: " + Object.keys(vui ?? {}).join(", ") + "\n\n" +
-      "bunny.ui keys: " + Object.keys(bui ?? {}).join(", ")
-    );
-
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
     const blocked = new Set<string>();
+    let replyPayloadDumped = false;
 
     const sheetInterceptor = (event: any) => {
       if (event?.type === "SHOW_ACTION_SHEET") {
@@ -32,6 +26,16 @@ export default {
       if (event?.type === "HIDE_ACTION_SHEET") {
         if (sheetTimer) clearTimeout(sheetTimer);
         sheetTimer = setTimeout(() => { recentSheet = false; }, 1000);
+      }
+      // Capture the real CREATE_PENDING_REPLY payload once
+      if (event?.type === "CREATE_PENDING_REPLY" && !replyPayloadDumped) {
+        replyPayloadDumped = true;
+        const keys = Object.keys(event).join(", ");
+        const safe = JSON.stringify(event, (k, v) => {
+          if (k === "message" || k === "channel") return "[object]";
+          return v;
+        });
+        alert("REAL CREATE_PENDING_REPLY keys:\n" + keys + "\n\nfull:\n" + safe.slice(0, 500));
       }
       return false;
     };
