@@ -13,47 +13,13 @@ export default {
       return;
     }
 
-    const focusInput = () => {
-      try {
-        const fiberKeys = Object.keys(globalThis).filter(k => k.startsWith("__reactFiber"));
-        const inputs: string[] = [];
-        let focused = false;
-
-        for (const key of fiberKeys) {
-          const fiber = (globalThis as any)[key];
-          if (!fiber) continue;
-
-          const visit = (node: any, depth: number) => {
-            if (!node || depth > 300 || focused) return;
-            try {
-              const isTextInput = node.memoizedProps?.onChangeText != null;
-              const hasFocus = typeof node.stateNode?.focus === "function";
-              if (isTextInput) {
-                inputs.push("depth=" + depth + " hasFocus=" + hasFocus + " props=" + Object.keys(node.memoizedProps ?? {}).slice(0, 6).join(","));
-                if (hasFocus) {
-                  node.stateNode.focus();
-                  focused = true;
-                  return;
-                }
-              }
-              visit(node.child, depth + 1);
-              visit(node.sibling, depth + 1);
-            } catch {}
-          };
-          visit(fiber, 0);
-        }
-
-        alert("fiberKeys=" + fiberKeys.length +
-              "\ninputs found=" + inputs.length +
-              "\nfocused=" + focused +
-              "\n\n" + inputs.slice(0, 5).join("\n"));
-      } catch (e: any) {
-        alert("focusInput error: " + e);
-      }
-    };
-
-    // Test on load after 2s so we can see what's on screen
-    setTimeout(focusInput, 2000);
+    // Check what vendetta/bunny exposes for UI access
+    const vendetta = (globalThis as any).vendetta;
+    const bunny = (globalThis as any).bunny;
+    alert(
+      "vendetta keys: " + Object.keys(vendetta ?? {}).join(", ") + "\n\n" +
+      "bunny keys: " + Object.keys(bunny ?? {}).join(", ")
+    );
 
     let recentSheet = false;
     let sheetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -101,8 +67,6 @@ export default {
         shouldMention: true,
         showMentionToggle: true,
       });
-
-      setTimeout(focusInput, 300);
 
       if (ReactionActions?.removeReaction) {
         setTimeout(() => {
